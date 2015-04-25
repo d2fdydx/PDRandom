@@ -5,15 +5,18 @@ import sys
 #Generate Random Numbers according to a probability density function
 # 
 #
-#By Ken Leung
+#By Ken Leung d2fdydx
 
 
 # the probility density need to return value >=0 
- 
+
 class PDRandom:
 	mFunc=None
 	mNumSubDiv=10
+	mTarget= 0
+	mProgress=0
 	#public
+	BASE_UNIT=5000
 
 	#return one random Number
 	def Next(self):
@@ -33,10 +36,21 @@ class PDRandom:
 					return x
 
 	#return a list of random numbers
-	def RandList(self,num=1):
+	def RandList(self,num, showProg=True):
+		if (showProg==True):
+			print ("start: randlist")
+			self.mTarget=num
+			self.mProgress=0
 		temp=[]
 		for i in range(num):
 			temp.append(self.Next()) 
+			if showProg and (i%self.BASE_UNIT)==0:
+				self.mProgress = i
+				self.showProgress()
+		if showProg:
+			self.mProgress=num
+			self.showProgress()
+
 		return temp
 
 
@@ -44,46 +58,34 @@ class PDRandom:
 	# 
 	# if   binLowerBound <= randomNum < binLowerBound + binWidth, randomNum will be counted for this bin with value = binLowerBound
 	#inclusive lowerbound, exclusive upper
-	def GetCountList(self,binWidth, li):
+	def GetCountList(self,binNum, li):
 		if self.mDimension > 1:
-			totalBins = []
-			allBins = 1
+			binWidth =[ float(self.mUpper[d]-self.mLower[d])/binNum[d]  for d in range(self.mDimension)]  # binsNum respect to x1,x2,...
+
+			allBins = 1 # all bins counted as 1 dim
+			for num in binNum:
+				allBins *= num
 			countlist=[]
 
-			for d in range(self.mDimension):
-				totalBins.append(int(math.ceil((self.mUpper[d]-self.mLower[d])/binWidth[d])))
-				allBins= allBins * totalBins[d]
 			for i in range(allBins):
-				eachIndex = self.getEachIndex(i,totalBins)
+				eachIndex = self.getEachIndex(i,binNum)
 				temp =[self.mLower[d] + binWidth[d] * eachIndex[d] for d in range(self.mDimension)] 
 				temp.append(0)
 				countlist.append(temp)
-			for item in li:
-				binIndex=[]
-				for d in range(self.mDimension):
-					binIndex.append(int((item[d] - self.mLower[d])/binWidth[d]))
-				globalIndex = self.getGlobalIndex(binIndex,totalBins)
-				countlist[globalIndex][self.mDimension] = countlist[globalIndex][self.mDimension]  + 1
+			self.count(countlist,li,binWidth, binNum)
 			return countlist
-
-
-				
-
-
 
 
 		else:
-			totalBins = int(math.ceil((self.mUpper-self.mLower) /binWidth))
-			countlist =[ (self.mLower+ binWidth *i, 0) for i in range(totalBins)]
-			for item in li:
-				binIndex = int((item- self.mLower)/binWidth)
-				countlist[binIndex] =(countlist[binIndex][0], countlist[binIndex][1]+1)
-
+			binWidth = float(self.mUpper-self.mLower) / binNum
+			countlist =[ (self.mLower+ binWidth *i, 0) for i in range(binNum)]
+			self.count(countlist,li,binWidth,binNum)
 			return countlist
 
 	# output to a file with space speration format
-	def OutputCountList(self,countlist, filename):
-		with open(filename,"w") as f :
+	def OutputCountList(self,countlist, filename , option="w"):
+		print ("start: output countlist")
+		with open(filename,option) as f :
 
 			if self.mDimension > 1 :
 				for item in countlist:
@@ -99,28 +101,107 @@ class PDRandom:
 					line = "%f %d\n"%(tup[0],tup[1])
 					f.write(line)
 			
-			print "Sucess: output to %s"%filename
+			print ("Sucess: output to %s"%filename)
+
+	# directly output random number to a file
+	def OutputRawRandom(self,number, filename, nproc=1):
+		print("start: output raw random numbers")
+		self.mTarget=number
+		self.mProgress=0
+		remain = number
+		with open(filename, "w") as f:
+			while remain >0 :
+				if remain < self.BASE_UNIT:
+					lis= self.RandList(remain,False)
+					self.mProgress += remain
+					remain =0
+
+				else:
+					lis = self.RandList(self.BASE_UNIT,False)
+					remain = remain - self.BASE_UNIT
+					self.mProgress= self.mProgress + self.BASE_UNIT
+
+				for item in lis:
+					if (self.mDimension >1):
+						for i in range(len(item)):
+							item[i] = str(item[i])
+						line= " ".join(item) + "\n"
+					else:
+						line = item + "\n"
+					f.write(line)
+
+				self.showProgress()
+			print ("complete output raw random numbers")
+
+	# gen a count list and output
+	def OutputGenCountList (self, number , binNum, filename, nproc=1):
+		print ("start: output and gen count list")
+		self.mTarget=number
+		self.mProgress=0
+		remain = number
+		
+		if self.mDimension > 1:
+			binWidth =[ float(self.mUpper[d]-self.mLower[d])/binNum[d]  for d in range(self.mDimension)]  # binsNum respect to x1,x2,...
+
+			allBins = 1 # all bins counted as 1 dim
+			for num in binNum:
+				allBins *= num
+			countlist=[]
+
+			for i in range(allBins):
+				eachIndex = self.getEachIndex(i,binNum)
+				temp =[self.mLower[d] + binWidth[d] * eachIndex[d] for d in range(self.mDimension)] 
+				temp.append(0)
+				countlist.append(temp)
+
+			while remain >0 :
+				lis=[]
+				if remain < self.BASE_UNIT:
+					lis= self.RandList(remain,False)
+					self.mProgress += remain
+					remain =0
+				else:
+					lis = self.RandList(self.BASE_UNIT,False)
+					remain = remain - self.BASE_UNIT
+					self.mProgress= self.mProgress + self.BASE_UNIT
+				self.count(countlist,lis,binWidth, binNum)
+				self.showProgress()
+			self.OutputCountList(countlist,filename)
 
 
+		#============================	
+		else:
+			binWidth = float(self.mUpper- self.mLower)/binNum
+			countlist =[ (self.mLower+ binWidth *i, 0) for i in range(binNum)]
+			while remain >0 :
+				lis=[]
+				if remain < self.BASE_UNIT:
+					lis= self.RandList(remain,False)
+					self.mProgress += remain
+					remain =0
+				else:
+					lis = self.RandList(self.BASE_UNIT,False)
+					remain = remain - self.BASE_UNIT
+					self.mProgress= self.mProgress + self.BASE_UNIT
+				self.count(countlist,lis,binWidth,binNum)
+				self.showProgress()	
+			self.OutputCountList(countlist,filename)
+
+		print ("finish: output and gen count list")	
 
 
-
-
-
-
-
-
-	# some helper function
+	
 	# subdiv: used for finding max in a division
 	# divWidth too small -> performance hit
 	# divWidth too large -> rejection rate increase -> performance hit
-	def __init__(self,func,lower,upper , divWidth, subdiv=1000, dimension=1):
+	def __init__(self,func,lower,upper , numDiv, subdiv=100, dimension=1):
+		print ("Start initializing")
 		self.mDimension=dimension
 		if dimension > 1:
 			try:
 				assert isinstance(lower,list)
 				assert isinstance(upper,list)
-				assert isinstance(divWidth,list)
+				assert isinstance(numDiv,list)
 				
 			except AssertionError:
 				sys.stderr.write("not pass a list argument for dimension %d"%(dimension))
@@ -128,6 +209,8 @@ class PDRandom:
 			self.mFunc = func 
 			self.mLower =lower
 			self.mUpper =upper
+
+			divWidth = [(upper[d]-lower[d])*1.0/numDiv[d] for d in range(dimension)]
 			self.mDivWidth = divWidth
 
 			if not isinstance(subdiv,list):
@@ -138,15 +221,12 @@ class PDRandom:
 			else:
 				self.mNumSubDiv= [int(num) for num in subdiv ]
 
-			self.mNumDiv=[]
+			self.mNumDiv=numDiv
 			self.mTotalNumDiv =1 
-			for i in range(dimension):
-				numDiv = (upper[i] - lower[i]) /divWidth[i]
+			for num in numDiv:
+				self.mTotalNumDiv *= num
 
-				numDiv = math.ceil(numDiv)
-				numDiv= int(numDiv)
-				self.mTotalNumDiv =self.mTotalNumDiv  * numDiv
-				self.mNumDiv.append(numDiv)
+			
 
 			#print self.mNumDiv
 			
@@ -171,16 +251,21 @@ class PDRandom:
 			self.mFunc = func 
 			self.mLower =lower
 			self.mUpper =upper
-			self.mDivWidth = divWidth
+
+			self.mDivWidth = float(upper-lower)/numDiv
 			self.mNumSubDiv=int(subdiv)
 
-			numDiv = (upper - lower) /divWidth
-			numDiv = math.ceil(numDiv)
-			numDiv= int(numDiv)
-			self.mNumDiv =numDiv
+			self.mNumDiv = numDiv
 			self.mMaxs=[ self.findMax(i*divWidth+lower, (i+1)*divWidth +lower) for i in range(numDiv)]
 			self.initMapping()
 
+		print("Complete initialization")
+
+
+
+	# some helper function ======================================
+	#
+	#
 	# finding the local max of a function by discrete method
 	def findMax(self, low, upper):
 
@@ -311,18 +396,8 @@ class PDRandom:
 							tempArea = tempArea + groupAreas[d][tempGlobalIndex]
 							self.mMapValues[d][tempGlobalIndex]=((ownIndex,lowerBound/total, groupAreas[d][tempGlobalIndex]/total ))
 
-			print self.mMapValues				
 			return 	
 
-
-
-
-			#================
-			for  area in enumerate(areas):
-				lowerBound = tempArea
-				tempArea = tempArea+area
-				self.mMapValues.append ( (index,lowerBound/totalArea,area/totalArea))
-			self.mMapValues= sorted(self.mMapValues,key = lambda mapping:mapping[2],reverse =True )
 
 		else:
 			#===================D - 1 =======================
@@ -341,9 +416,8 @@ class PDRandom:
 				self.mMapValues.append ( (index,lowerBound/totalArea,area/totalArea))
 
 			self.mMapValues= sorted(self.mMapValues,key = lambda mapping:mapping[2],reverse =True )
-			print self.mMapValues	
 
-	#given a rand, return the corresponding x value 
+	#given a rand, return the corresponding value(s) 
 	def getX (self,rand):
 
 #		print rand
@@ -391,9 +465,17 @@ class PDRandom:
 	#				print str(tempWidth) + " " + str(lower)
 					return (divIndex,self.mLower+(divIndex+(tempWidth/width)) * self.mDivWidth )
 
-			print "error: corresponding x not found"
+			print ("error: corresponding x not found")
 
 	def acceptReject(self,divIndex, x):
+		if self.mDimension >1:
+			for d, value  in enumerate(x):
+				if  value >= self.mUpper[d]:
+					return False
+		else:
+			if x >=self.mUpper:
+				return False
+
 		randHight = random.random() * self.mMaxs[divIndex]
 		funcH = self.mFunc(x) 
 		if randHight <= funcH:
@@ -425,29 +507,27 @@ class PDRandom:
 
 		return globalIndex
 
+	def showProgress(self):
+		percentage = float(self.mProgress)/self.mTarget * 100.0
+		sys.stdout.write("\r%f%%"%percentage)
+		sys.stdout.flush()
 
+	def count(self,countlist, lis,binWidth,binNum ):
+		if self.mDimension >1:
+			for item in lis:
+				binIndex=[]
+				for d in range(self.mDimension):
+					tempBinIndex = int((item[d] - self.mLower[d])/binWidth[d])
+					binIndex.append(tempBinIndex)
+				globalIndex = self.getGlobalIndex(binIndex,binNum)
+				countlist[globalIndex][self.mDimension] = countlist[globalIndex][self.mDimension]  + 1
+		#============================	
+		else:
+			for item in lis:
+				binIndex = int((item- self.mLower)/binWidth)
+				countlist[binIndex] =(countlist[binIndex][0], countlist[binIndex][1]+1)
 
 
 
 # end of class ========================
-
-if __name__=="__main__":
-
-	def test(i):
-		summ = 1.0/(2*math.pi)**0.5 *math.exp(-((i)**2)/2.0)
-		#summ= abs(i)
-		return summ
-
-	a = PDRandom(test,-5 ,5 ,0.5,dimension=1)
-	li=a.RandList(50000)
-	#ran = random.random()
-	#li= a.RandList(50000)
-	#print li
-	countlist=a.GetCountList(0.1,li)
-	#print countlist
-
-
-	#print li
-	#print countlist
-	a.OutputCountList(countlist, "result")
 

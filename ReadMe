@@ -1,0 +1,5 @@
+ReadMe
+PDRandom  by Ken Leung
+
+Generate random numbers according to your probability function, e.g. sin(x), cos(x) , sin(x)sin(y)
+Support f: R^n -> R
