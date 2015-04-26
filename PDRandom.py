@@ -54,7 +54,7 @@ class PDRandom:
 		return temp
 
 
-	#return a (number, count) list
+	#return a [[x1,x2,.., count]] list
 	# 
 	# if   binLowerBound <= randomNum < binLowerBound + binWidth, randomNum will be counted for this bin with value = binLowerBound
 	#inclusive lowerbound, exclusive upper
@@ -101,7 +101,7 @@ class PDRandom:
 					line = "%f %d\n"%(tup[0],tup[1])
 					f.write(line)
 			
-			print ("Sucess: output to %s"%filename)
+			print ("Done: output to %s"%filename)
 
 	# directly output random number to a file
 	def OutputRawRandom(self,number, filename, nproc=1):
@@ -231,6 +231,10 @@ class PDRandom:
 			#print self.mNumDiv
 			
 			#print self.mTotalNumDiv
+			self.mTarget=self.mTotalNumDiv
+			self.mProgress=0
+
+			print ("start: finding maximum")
 			self.mMaxs=[]
 			for globalIndex in range(self.mTotalNumDiv):
 				eachIndex = self.getEachIndex(globalIndex,self.mNumDiv)
@@ -241,6 +245,13 @@ class PDRandom:
 			#	print subLower
 			#	print subUpper
 				self.mMaxs.append(self.findMax(subLower, subUpper))
+				if (globalIndex%100)==0:
+					self.mProgress=globalIndex
+					self.showProgress()
+
+			self.mProgress=self.mTarget
+			self.showProgress()
+			print(" ")
 
 			#print self.mMaxs
 			self.initMapping()	
@@ -253,6 +264,7 @@ class PDRandom:
 			self.mUpper =upper
 
 			self.mDivWidth = float(upper-lower)/numDiv
+			divWidth=self.mDivWidth
 			self.mNumSubDiv=int(subdiv)
 
 			self.mNumDiv = numDiv
@@ -320,6 +332,7 @@ class PDRandom:
 
 	# init the mapping of random number	to our range
 	def initMapping(self): 
+		print("start: init mapping")
 		if self.mDimension > 1:
 			areas = []
 			groupAreas=[]
@@ -333,6 +346,8 @@ class PDRandom:
 				groupAreas.append([0 for i in range(tempNum	)])
 				self.mMapValues.append([None for i in range(tempNum)])
 
+			self.mTarget=len(self.mMaxs)
+			self.mProgress=0
 
 			for i in range(len(self.mMaxs)):
 				temp = self.mMaxs[i]
@@ -364,14 +379,20 @@ class PDRandom:
 					subGlobalIndex =self.getGlobalIndex(subEachIndex, subNumDiv)
 					groupAreas[d][subGlobalIndex] = groupAreas[d][subGlobalIndex] + temp
 
+				if (i % 1000)==0:
+					self.mProgress=i
+					self.showProgress()
+
+			self.mProgress=self.mTarget
+			self.showProgress()
+			print("")
+
 
 			
-			
-
-			
-
-			
-			
+			self.mProgress=0	
+			self.mTarget = self.mDimension 
+			for d in range (self.mDimension):
+				self.mTarget *= len(totalArea[d])
 			for d in range(self.mDimension):
 				for totalIndex, total in enumerate(totalArea[d]):
 					if d == 0:
@@ -395,6 +416,12 @@ class PDRandom:
 							lowerBound =tempArea
 							tempArea = tempArea + groupAreas[d][tempGlobalIndex]
 							self.mMapValues[d][tempGlobalIndex]=((ownIndex,lowerBound/total, groupAreas[d][tempGlobalIndex]/total ))
+					self.mTarget+=1
+					if (self.mTarget%1000):
+						self.showProgress()
+			self.mProgress=self.mTarget
+			self.showProgress()
+			print("")
 
 			return 	
 
