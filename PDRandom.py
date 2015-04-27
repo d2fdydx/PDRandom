@@ -596,13 +596,14 @@ class PDRandom:
 			each.join()
 
 		print ("")
+		print ("combining tmp files")
 		with open (filename,'w') as out:
 			for tmpFile in filenames:
 				with open(tmpFile,'r') as tmp:
 					for line in tmp:
 						out.write(line)
 
-		print ("combining tmp files")
+		
 		#clean up
 		for tmpFile in filenames:
 			os.remove(tmpFile)
