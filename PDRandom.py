@@ -2,6 +2,7 @@
 import math
 import random
 import sys
+import multiprocessing
 #Generate Random Numbers according to a probability density function
 # 
 #
@@ -16,7 +17,8 @@ class PDRandom:
 	mTarget= 0
 	mProgress=0
 	#public
-	BASE_UNIT=5000
+	BASE_UNIT=10000
+	MAX_HOLD=2e5
 
 	#return one random Number
 	def Next(self):
@@ -105,9 +107,15 @@ class PDRandom:
 
 	# directly output random number to a file
 	def OutputRawRandom(self,number, filename, nproc=1):
+
 		print("start: output raw random numbers")
 		self.mTarget=number
 		self.mProgress=0
+		if nproc > 1 :
+
+			return
+
+
 		remain = number
 		with open(filename, "w") as f:
 			while remain >0 :
@@ -539,6 +547,11 @@ class PDRandom:
 		sys.stdout.write("\r%f%%"%percentage)
 		sys.stdout.flush()
 
+	def showProgressM(self, count, Total):
+		percentage = float(count)/Total * 100.0
+		sys.stdout.write("\r%f%%"%percentage)
+		sys.stdout.flush()
+
 	def count(self,countlist, lis,binWidth,binNum ):
 		if self.mDimension >1:
 			for item in lis:
@@ -554,7 +567,66 @@ class PDRandom:
 				binIndex = int((item- self.mLower)/binWidth)
 				countlist[binIndex] =(countlist[binIndex][0], countlist[binIndex][1]+1)
 
+	#======================= multi Processing =========================
 
+	def multiOutputRawRandom(self, num,filename,nproc):
+		
+		manager = multiprocessing.Manager()	
+		total = num
+		re = num
+		count = multiprocessing.Value('i',0)
+		while re >0 :
+			if re >self.MAX_HOLD:
+				num = int(self.MAX_HOLD)
+				re -= int(self.MAX_HOLD)
+			else:
+				num = re
+				re =0
+			arr = manager.list()
+
+			perNum = int(num) /nproc
+			remain = num %nproc
+			processes =[]
+
+			for i in range(nproc):
+				if i ==0:
+					processes.append(multiprocessing.Process(target=self.randomTask, args=(perNum+remain,arr,count,total)))
+				else:
+					processes.append(multiprocessing.Process(target=self.randomTask, args=(perNum,arr,count,total)))
+
+
+			for each in processes:
+				each.start()
+			for each in processes:
+				each.join()
+
+
+			print ("one set")
+
+		print ("")
+		
+		print len(arr)
+		
+
+	def randomTask(self,num,arr,count,total):
+		randlist=[]
+		remain=num
+		counter =0
+		for i in range(num):
+			randlist.append(self.Next())
+			counter +=1
+			if (i%self.BASE_UNIT) ==0 :
+				with count.get_lock():
+					count.value+=counter
+					self.showProgressM(count.value,total)
+				counter =0
+		with count.get_lock():
+			count.value+=counter
+			self.showProgressM(count.value,total)	
+		counter=0
+
+		arr.extend(randlist)
+		return num
 
 # end of class ========================
 
