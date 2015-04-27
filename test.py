@@ -14,5 +14,5 @@ def sine3(input):
 #gen.OutputGenCountList(100000,[50,50,50],"sine3")
 gen = PDRandom.PDRandom(cosine, -1, math.pi, 10,dimension=1)
 #gen.OutputGenCountList(100000,50,"consine2")
-gen.multiOutputRawRandom(1000000,"hi",1)
+gen.OutputRawRandom(1000000,"hi",nproc=2)
 

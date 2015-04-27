@@ -3,6 +3,7 @@ import math
 import random
 import sys
 import multiprocessing
+import os
 #Generate Random Numbers according to a probability density function
 # 
 #
@@ -112,7 +113,7 @@ class PDRandom:
 		self.mTarget=number
 		self.mProgress=0
 		if nproc > 1 :
-
+			self.multiOutputRawRandom(number,filename,nproc)
 			return
 
 
@@ -571,61 +572,75 @@ class PDRandom:
 
 	def multiOutputRawRandom(self, num,filename,nproc):
 		
-		manager = multiprocessing.Manager()	
 		total = num
 		re = num
 		count = multiprocessing.Value('i',0)
-		while re >0 :
-			if re >self.MAX_HOLD:
-				num = int(self.MAX_HOLD)
-				re -= int(self.MAX_HOLD)
+		filenames = [filename+"_tmp_"+str(i) for i in range(nproc)]
+
+		perNum = int(num) /nproc
+		remain = num %nproc
+		processes =[]
+
+		print ("start running in %d proc"%(nproc))
+
+		for i in range(nproc):
+			if i ==0:
+				processes.append(multiprocessing.Process(target=self.randomTask, args=(perNum+remain,count,total,filenames[i])))
 			else:
-				num = re
-				re =0
-			arr = manager.list()
-
-			perNum = int(num) /nproc
-			remain = num %nproc
-			processes =[]
-
-			for i in range(nproc):
-				if i ==0:
-					processes.append(multiprocessing.Process(target=self.randomTask, args=(perNum+remain,arr,count,total)))
-				else:
-					processes.append(multiprocessing.Process(target=self.randomTask, args=(perNum,arr,count,total)))
+				processes.append(multiprocessing.Process(target=self.randomTask, args=(perNum,count,total,filenames[i])))
 
 
-			for each in processes:
-				each.start()
-			for each in processes:
-				each.join()
-
-
-			print ("one set")
+		for each in processes:
+			each.start()
+		for each in processes:
+			each.join()
 
 		print ("")
-		
-		print len(arr)
+		with open (filename,'w') as out:
+			for tmpFile in filenames:
+				with open(tmpFile,'r') as tmp:
+					for line in tmp:
+						out.write(line)
+
+		print ("combining tmp files")
+		#clean up
+		for tmpFile in filenames:
+			os.remove(tmpFile)
+
+
+
+			
+	
 		
 
-	def randomTask(self,num,arr,count,total):
+	def randomTask(self,num,count,total,filename):
 		randlist=[]
 		remain=num
 		counter =0
-		for i in range(num):
-			randlist.append(self.Next())
-			counter +=1
-			if (i%self.BASE_UNIT) ==0 :
-				with count.get_lock():
-					count.value+=counter
-					self.showProgressM(count.value,total)
-				counter =0
-		with count.get_lock():
-			count.value+=counter
-			self.showProgressM(count.value,total)	
-		counter=0
+		with open (filename,'w') as f:
+			for i in range(num):
+				randlist.append(self.Next())
+				counter +=1
+				if (counter%self.BASE_UNIT) ==0:
+					#arr.extend(randlist)
+					for item in randlist:
+						if (self.mDimension >1):
+							temp=[str(ran) for ran in item]
+							line = str(" ").join(temp)+"\n"
+						else:
+							line =str(item)+"\n"
+						f.write(line)
+					randlist=[]
+					with count.get_lock():
+						count.value+=counter
+						self.showProgressM(count.value,total)
+					counter =0
+		#	arr.extend(randlist)
+			with count.get_lock():
+				count.value+=counter
+				self.showProgressM(count.value,total)	
+			counter=0
 
-		arr.extend(randlist)
 		return num
 
 # end of class ========================
