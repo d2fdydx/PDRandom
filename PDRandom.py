@@ -5,9 +5,10 @@ import sys
 import multiprocessing
 import os
 #Generate Random Numbers according to a probability density function
-# 
+# Distributed under the MIT License.
+# see the LICENSE.txt
 #
-#By Ken Leung d2fdydx
+#By Ken Leung 
 
 
 # the probility density need to return value >=0 
