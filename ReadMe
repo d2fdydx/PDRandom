@@ -1,6 +1,25 @@
 ReadMe
 PDRandom  by Ken Leung
+The MIT License (MIT)
+Copyright (c) 2015 Ken Leung
+###Update  1.0.2####
+New Feature: 
+1. support multiprocessing
+for function: RandList, GetCountList, GenCountList, OutputRawRandom, OutputGenCountList,
+You can set argument nproc=NUM_OF_PROCESS
+e.g. gen.OutputGenCountList(int(1e6),[100,100],"cosine2",nproc=4,foption='a')
 
+2. you can append the existing data files
+set foption='a' for appending
+*for appending a countlist file, the binNum should be matched with the file
+
+3. new function: GenCountList(number,binNum,nproc=1) ---- directly generate and return  a countlist
+
+misc: tidy up
+
+*any bugs, tell me via email or github
+
+#===== Information =======
 Generate random numbers according to your probability function, e.g. sin(x), cos(x) , sin(x)sin(y)
 f: R^n -> R
 
@@ -21,15 +40,20 @@ def test(input):
 
 2. create a PDRandom object
 ranObject = PDRandom.PDRandom(test, lowerBound, UpperBound, NumDiv, NumSubDiv, dimension )
+
 # test:  your density function
+#
 # lowerBound, UpperBound: x ϵ [lowerBound,UpperBound) 
 #			for dim >1 :  x0 ϵ [lowerBound[0],UpperBound[0]), x1 ϵ [lowerBound[1],UpperBound[1]) , ..............
+#
 # NumDiv: divide the [UpperBound - LowerBound] into numbers of divisions for the Step function (bound function)
 #		    NumDiv >=1 . NumDiv increases -> Rejection Rate decreases (i.e. increases the acceptance chance of random numbers) ,
 #			BUT large NumDiv would cause performance hit 
 #			* this parameter related to the performance(Speed)
+#
 # NumSubDiv (Optional): used to find the maximum value in a division, related to the accuracy, and initialization time. 
 #		e.g. 1000 or [10,10,10]
+#
 # Dimension: specify how many input varibles
 
 3. Some Class Function You can Use:
@@ -62,7 +86,7 @@ OutputRawRandom(number, filename): generate rand numbers to a file with filename
 
 OutputGenCountList (number , binNum, filename): generate and directly output the count list
 
-
+#===================================================================
 
 Example:
 1-Dim case:
@@ -80,6 +104,6 @@ print (gen.GetCountList([10,10,10], lis))
 gen.OutputGenCountList(100000,[50,50,50],"sine3")
 
 
-Mis:
+misc:
 	contact: devyat192002@gmail.com
 	feel free to contact me if any question, bug, opinion, I will response as soon as possible

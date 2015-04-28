@@ -4,10 +4,11 @@ import random
 import sys
 import multiprocessing
 import os
+import os.path
 #Generate Random Numbers according to a probability density function
 # Distributed under the MIT License.
 # see the LICENSE.txt
-#
+# 1.0.2
 #By Ken Leung 
 
 
@@ -20,7 +21,7 @@ class PDRandom:
 	mProgress=0
 	#public
 	BASE_UNIT=10000
-	MAX_HOLD=2e5
+	
 
 	#return one random Number
 	def Next(self):
@@ -40,7 +41,11 @@ class PDRandom:
 					return x
 
 	#return a list of random numbers
-	def RandList(self,num, showProg=True):
+	def RandList(self,num, nproc=1,showProg=True):
+		if  nproc >1 :
+			return self.multiRandList(num,nproc)
+
+
 		if (showProg==True):
 			print ("start: randlist")
 			self.mTarget=num
@@ -54,6 +59,7 @@ class PDRandom:
 		if showProg:
 			self.mProgress=num
 			self.showProgress()
+			print("")
 
 		return temp
 
@@ -63,139 +69,75 @@ class PDRandom:
 	# if   binLowerBound <= randomNum < binLowerBound + binWidth, randomNum will be counted for this bin with value = binLowerBound
 	#inclusive lowerbound, exclusive upper
 	def GetCountList(self,binNum, li):
-		if self.mDimension > 1:
-			binWidth =[ float(self.mUpper[d]-self.mLower[d])/binNum[d]  for d in range(self.mDimension)]  # binsNum respect to x1,x2,...
-
-			allBins = 1 # all bins counted as 1 dim
-			for num in binNum:
-				allBins *= num
-			countlist=[]
-
-			for i in range(allBins):
-				eachIndex = self.getEachIndex(i,binNum)
-				temp =[self.mLower[d] + binWidth[d] * eachIndex[d] for d in range(self.mDimension)] 
-				temp.append(0)
-				countlist.append(temp)
-			self.count(countlist,li,binWidth, binNum)
-			return countlist
-
-
-		else:
-			binWidth = float(self.mUpper-self.mLower) / binNum
-			countlist =[ (self.mLower+ binWidth *i, 0) for i in range(binNum)]
-			self.count(countlist,li,binWidth,binNum)
-			return countlist
+		(countlist,binWidth,binNum)= self.initCountList(binNum)		
+		self.count(countlist,li,binWidth, binNum)
+		return countlist	
+		
+	#directly generate a countlist
+	# support multiprocessing
+	def GenCountList(self,num,binNum,nproc=1):
+		print ("start: gen count list")
+		countlist = self.genCountList(num,binNum,nproc)	
+		print ("finish:gen count list")	
+		return countlist
 
 	# output to a file with space speration format
-	def OutputCountList(self,countlist, filename , option="w"):
+	def OutputCountList(self,countlist, filename , foption='w'):
 		print ("start: output countlist")
-		with open(filename,option) as f :
+		tempList =[]
+		if foption=='a':
+			if os.path.isfile(filename):
+				with open (filename,'r') as f:
+					for line in f:
+						tempList.append(line.split(" "))
+				self.catCountList(tempList,countlist)
 
-			if self.mDimension > 1 :
-				for item in countlist:
-					for i in range(len(item)):
-						item[i] = str(item[i])
-					line = " ".join(item)
-					f.write(line+"\n")
 
-					
 
-			else:
-				for tup in countlist:
-					line = "%f %d\n"%(tup[0],tup[1])
-					f.write(line)
+		with open(filename,'w') as f :
+			for item in countlist:
+				for i in range(len(item)):
+					item[i] = str(item[i])
+				line = " ".join(item)
+				f.write(line+"\n")
 			
-			print ("Done: output to %s"%filename)
+		print ("finish: output to %s"%filename)
 
 	# directly output random number to a file
-	def OutputRawRandom(self,number, filename, nproc=1):
+	def OutputRawRandom(self,number, filename, nproc=1, foption = 'w'):
 
 		print("start: output raw random numbers")
 		self.mTarget=number
 		self.mProgress=0
 		if nproc > 1 :
-			self.multiOutputRawRandom(number,filename,nproc)
+			self.multiOutputRawRandom(number,filename,nproc,foption=foption)
 			return
 
 
 		remain = number
-		with open(filename, "w") as f:
+		with open(filename, foption) as f:
 			while remain >0 :
 				if remain < self.BASE_UNIT:
-					lis= self.RandList(remain,False)
+					lis= self.RandList(remain,showProg= False)
 					self.mProgress += remain
 					remain =0
 
 				else:
-					lis = self.RandList(self.BASE_UNIT,False)
+					lis = self.RandList(self.BASE_UNIT,showProg= False)
 					remain = remain - self.BASE_UNIT
 					self.mProgress= self.mProgress + self.BASE_UNIT
 
-				for item in lis:
-					if (self.mDimension >1):
-						for i in range(len(item)):
-							item[i] = str(item[i])
-						line= " ".join(item) + "\n"
-					else:
-						line = item + "\n"
-					f.write(line)
+				self.outputRandomFile(lis,f)
 
 				self.showProgress()
-			print ("complete output raw random numbers")
+			print("")
+			print ("finish: output raw random numbers")
 
 	# gen a count list and output
-	def OutputGenCountList (self, number , binNum, filename, nproc=1):
+	def OutputGenCountList (self, number , binNum, filename,foption='w', nproc=1):
 		print ("start: output and gen count list")
-		self.mTarget=number
-		self.mProgress=0
-		remain = number
-		
-		if self.mDimension > 1:
-			binWidth =[ float(self.mUpper[d]-self.mLower[d])/binNum[d]  for d in range(self.mDimension)]  # binsNum respect to x1,x2,...
-
-			allBins = 1 # all bins counted as 1 dim
-			for num in binNum:
-				allBins *= num
-			countlist=[]
-
-			for i in range(allBins):
-				eachIndex = self.getEachIndex(i,binNum)
-				temp =[self.mLower[d] + binWidth[d] * eachIndex[d] for d in range(self.mDimension)] 
-				temp.append(0)
-				countlist.append(temp)
-
-			while remain >0 :
-				lis=[]
-				if remain < self.BASE_UNIT:
-					lis= self.RandList(remain,False)
-					self.mProgress += remain
-					remain =0
-				else:
-					lis = self.RandList(self.BASE_UNIT,False)
-					remain = remain - self.BASE_UNIT
-					self.mProgress= self.mProgress + self.BASE_UNIT
-				self.count(countlist,lis,binWidth, binNum)
-				self.showProgress()
-			self.OutputCountList(countlist,filename)
-
-
-		#============================	
-		else:
-			binWidth = float(self.mUpper- self.mLower)/binNum
-			countlist =[ (self.mLower+ binWidth *i, 0) for i in range(binNum)]
-			while remain >0 :
-				lis=[]
-				if remain < self.BASE_UNIT:
-					lis= self.RandList(remain,False)
-					self.mProgress += remain
-					remain =0
-				else:
-					lis = self.RandList(self.BASE_UNIT,False)
-					remain = remain - self.BASE_UNIT
-					self.mProgress= self.mProgress + self.BASE_UNIT
-				self.count(countlist,lis,binWidth,binNum)
-				self.showProgress()	
-			self.OutputCountList(countlist,filename)
+		countlist = self.genCountList(number,binNum,nproc)	
+		self.OutputCountList(countlist,filename,foption=foption)
 
 		print ("finish: output and gen count list")	
 
@@ -554,6 +496,28 @@ class PDRandom:
 		sys.stdout.write("\r%f%%"%percentage)
 		sys.stdout.flush()
 
+	def initCountList(self,binNum):
+		if self.mDimension > 1:
+			binWidth =[ float(self.mUpper[d]-self.mLower[d])/binNum[d]  for d in range(self.mDimension)]  # binsNum respect to x1,x2,...
+
+			allBins = 1 # all bins counted as 1 dim
+			for num in binNum:
+				allBins *= num
+			countlist=[]
+
+			for i in range(allBins):
+				eachIndex = self.getEachIndex(i,binNum)
+				temp =[self.mLower[d] + binWidth[d] * eachIndex[d] for d in range(self.mDimension)] 
+				temp.append(0)
+				countlist.append(temp)
+			return (countlist,binWidth,binNum)
+		#============================	
+		else:
+			binWidth = float(self.mUpper- self.mLower)/binNum
+			countlist =[ [self.mLower+ binWidth *i, 0] for i in range(binNum)]
+			return (countlist,binWidth,binNum)
+			
+
 	def count(self,countlist, lis,binWidth,binNum ):
 		if self.mDimension >1:
 			for item in lis:
@@ -562,16 +526,70 @@ class PDRandom:
 					tempBinIndex = int((item[d] - self.mLower[d])/binWidth[d])
 					binIndex.append(tempBinIndex)
 				globalIndex = self.getGlobalIndex(binIndex,binNum)
-				countlist[globalIndex][self.mDimension] = countlist[globalIndex][self.mDimension]  + 1
+				countlist[globalIndex][self.mDimension] += 1
 		#============================	
 		else:
 			for item in lis:
 				binIndex = int((item- self.mLower)/binWidth)
-				countlist[binIndex] =(countlist[binIndex][0], countlist[binIndex][1]+1)
+				countlist[binIndex][-1] +=1
 
+
+	def genCountList(self, number , binNum, nproc=1):
+		if nproc> 1:
+			return self.multiOutputGenCountList(number,binNum,nproc)
+
+		self.mTarget=number
+		self.mProgress=0
+		remain = number
+		
+		(countlist,binWidth,binNum)= self.initCountList(binNum)		
+		while remain >0 :
+			lis=[]
+			if remain < self.BASE_UNIT:
+				lis= self.RandList(remain,showProg= False)
+				self.mProgress += remain
+				remain =0
+			else:
+				lis = self.RandList(self.BASE_UNIT,showProg= False)
+				remain = remain - self.BASE_UNIT
+				self.mProgress= self.mProgress + self.BASE_UNIT
+			self.count(countlist,lis,binWidth, binNum)
+			self.showProgress()
+
+		print("")
+		return countlist
+
+	#helper
+	def outputRandomFile(self,lis, f):
+		for item in lis:
+			if (self.mDimension >1):
+				for i in range(len(item)):
+					item[i] = str(item[i])
+				line= " ".join(item) + "\n"
+			else:
+				line = str(item) + "\n"
+			f.write(line)
+
+
+
+	def catCountList(self, payload ,to):
+		for i ,count in enumerate(payload):
+			to[i][-1] += int(count[-1])
+		
+
+	def test_count(self,countlist):
+		s =0
+		for i in countlist:
+			s+=i[-1]
+		return s
 	#======================= multi Processing =========================
+	#
+	#
+	#
+	#
 
-	def multiOutputRawRandom(self, num,filename,nproc):
+	def multiOutputRawRandom(self, num,filename,nproc,foption='w'):
+		
 		
 		total = num
 		re = num
@@ -586,9 +604,9 @@ class PDRandom:
 
 		for i in range(nproc):
 			if i ==0:
-				processes.append(multiprocessing.Process(target=self.randomTask, args=(perNum+remain,count,total,filenames[i])))
+				processes.append(multiprocessing.Process(target=self.randomOutputTask, args=(perNum+remain,count,total,filenames[i])))
 			else:
-				processes.append(multiprocessing.Process(target=self.randomTask, args=(perNum,count,total,filenames[i])))
+				processes.append(multiprocessing.Process(target=self.randomOutputTask, args=(perNum,count,total,filenames[i])))
 
 
 		for each in processes:
@@ -598,7 +616,7 @@ class PDRandom:
 
 		print ("")
 		print ("combining tmp files")
-		with open (filename,'w') as out:
+		with open (filename,foption) as out:
 			for tmpFile in filenames:
 				with open(tmpFile,'r') as tmp:
 					for line in tmp:
@@ -609,41 +627,162 @@ class PDRandom:
 		for tmpFile in filenames:
 			os.remove(tmpFile)
 
-
+		print ("finish: output raw random")
 
 			
 	
 		
 
-	def randomTask(self,num,count,total,filename):
+	def randomOutputTask(self,num,count,total,filename):
 		randlist=[]
-		remain=num
+
+		num = int(num)
+		remain=int(num)
 		counter =0
+		
 		with open (filename,'w') as f:
 			for i in range(num):
 				randlist.append(self.Next())
 				counter +=1
 				if (counter%self.BASE_UNIT) ==0:
-					#arr.extend(randlist)
-					for item in randlist:
-						if (self.mDimension >1):
-							temp=[str(ran) for ran in item]
-							line = str(" ").join(temp)+"\n"
-						else:
-							line =str(item)+"\n"
-						f.write(line)
+					
+					self.outputRandomFile(randlist,f)	
 					randlist=[]
 					with count.get_lock():
 						count.value+=counter
 						self.showProgressM(count.value,total)
 					counter =0
-		#	arr.extend(randlist)
+			self.outputRandomFile(randlist,f)		
 			with count.get_lock():
+
 				count.value+=counter
 				self.showProgressM(count.value,total)	
 			counter=0
 
+
+
 		return num
 
+	def multiOutputGenCountList(self,num, binNum, nproc):
+		total = int(num)
+		
+		count = multiprocessing.Value('i',0)
+
+
+		perNum = int(num) /nproc
+		remain = num %nproc
+		processes =[]
+
+		manager = multiprocessing.Manager()
+		outputs = manager.list()
+
+		print ("start running in %d proc"%(nproc))
+
+		for i in range(nproc):
+			if i ==0:
+				processes.append(multiprocessing.Process(target=self.countlistTask, args=(perNum+remain,binNum,count,total,outputs )))
+			else:
+				processes.append(multiprocessing.Process(target=self.countlistTask, args=(perNum,binNum,count,total,outputs)))
+
+
+		for each in processes:
+			each.start()
+		for each in processes:
+			each.join()
+
+		print ("")
+		print ("combining")
+
+		finallist = outputs[0]
+	
+	
+		
+		for i in range(1,nproc):
+			self.catCountList(outputs[i],finallist)
+		return finallist
+
+	def countlistTask(self,num,binNum,count,total, output):
+		remain = int(num)
+		num = int(num)	
+		(countlist,binWidth,binNum)=self.initCountList(binNum)
+		randlist=[]
+		while remain >0:
+			if remain  < self.BASE_UNIT:
+				randlist=self.RandList(remain,showProg=False)
+				with count.get_lock():
+					count.value+=remain
+					self.showProgressM(count.value,total)
+
+				remain =0
+			else:
+				randlist=self.RandList(self.BASE_UNIT,showProg=False)
+				remain -= self.BASE_UNIT
+				with count.get_lock():
+					count.value+=self.BASE_UNIT
+					self.showProgressM(count.value,total)
+					
+			self.count(countlist,randlist,binWidth,binNum)
+
+			
+		output.append(countlist)
+
+
+	def multiRandList(self, num,nproc):
+		total = num
+		
+		count = multiprocessing.Value('i',0)
+
+
+		perNum = int(num) /nproc
+		remain = num %nproc
+		processes =[]
+
+		manager = multiprocessing.Manager()
+		outputs = manager.list()
+
+		print ("start running in %d proc"%(nproc))
+
+		for i in range(nproc):
+			if i ==0:
+				processes.append(multiprocessing.Process(target=self.randomListTask, args=(perNum+remain,count,total,outputs )))
+			else:
+				processes.append(multiprocessing.Process(target=self.randomListTask, args=(perNum,count,total,outputs)))
+
+
+		for each in processes:
+			each.start()
+		for each in processes:
+			each.join()
+
+		finallist = outputs[0]
+		for i in range(1,nproc):
+			finallist.extend(outputs[i])
+		return finallist
+
+
+	def randomListTask(self,num,count,total,outputs):
+		remain = int(num)
+		num =int(num)	
+		randlist=[]
+		finallist=[]
+		while remain >0:
+			if remain  < self.BASE_UNIT:
+				randlist=self.RandList(remain,showProg=False)
+				with count.get_lock():
+					count.value+=remain
+					self.showProgressM(count.value,total)
+
+				remain =0
+			else:
+				randlist=self.RandList(self.BASE_UNIT,showProg=False)
+				remain -= self.BASE_UNIT
+				with count.get_lock():
+					count.value+=self.BASE_UNIT
+					self.showProgressM(count.value,total)
+					
+			finallist.extend(randlist)
+		outputs.append(finallist)
+		return 
+	
 # end of class ========================
 
